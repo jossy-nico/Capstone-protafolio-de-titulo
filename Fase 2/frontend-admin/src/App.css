@@ -1,0 +1,187 @@
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+.area-principal {
+  flex: 1;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* =========================
+   MENÚ LATERAL
+   ========================= */
+
+.menu-lateral {
+  width: 250px;
+  min-height: 100vh;
+  padding: 32px 18px;
+
+  background: linear-gradient(180deg,
+      #12633f 0%,
+      #0d5135 100%);
+
+  color: white;
+}
+
+/* Marca */
+.menu-marca {
+  padding: 0 12px 30px 12px;
+}
+
+.menu-marca h2 {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 700;
+  color: white;
+}
+
+.menu-marca p {
+  margin: 5px 0 0;
+  font-size: 14px;
+  color: #d8eadf;
+}
+
+/* Navegación */
+.menu-navegacion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Botones */
+.menu-opcion {
+  width: 100%;
+  padding: 14px 16px;
+
+  border: none;
+  border-radius: 9px;
+
+  background-color: transparent;
+  color: white;
+
+  font-size: 15px;
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+/* Mouse sobre una opción */
+.menu-opcion:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Opción seleccionada */
+.menu-opcion.activa {
+  background-color: #32945b;
+  font-weight: 600;
+}
+
+/* =========================
+   CONTENIDO PRINCIPAL
+   ========================= */
+
+.contenido-principal {
+  flex: 1;
+  padding: 28px;
+  background-color: #f3f7f4;
+}
+
+.tarjeta-bienvenida {
+  min-height: 230px;
+
+  padding: 38px 40px;
+
+  background-color: white;
+
+  border: 1px solid #e5eee8;
+  border-radius: 16px;
+
+  box-shadow: 0 4px 16px rgba(18, 99, 63, 0.06);
+}
+
+.titulo-seccion {
+  margin: 0 0 20px;
+
+  color: #5d6d64;
+
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+}
+
+.tarjeta-bienvenida h1 {
+  margin: 0 0 12px;
+
+  color: #123c2a;
+
+  font-size: 36px;
+}
+
+.texto-bienvenida {
+  margin: 0;
+
+  color: #53615a;
+
+  font-size: 18px;
+}
+
+/* =========================
+   ENCABEZADO SUPERIOR
+   ========================= */
+
+.encabezado {
+  height: 72px;
+  padding: 0 28px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background-color: white;
+  border-bottom: 1px solid #e2e8e4;
+}
+
+.boton-menu {
+  border: none;
+  background-color: transparent;
+
+  color: #12633f;
+  font-size: 28px;
+
+  cursor: pointer;
+}
+
+.usuario-admin {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  color: #26352d;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.usuario-avatar {
+  width: 38px;
+  height: 38px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background-color: #dcefe3;
+  color: #12633f;
+
+  font-weight: 700;
+}
