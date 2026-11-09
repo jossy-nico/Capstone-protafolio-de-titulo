@@ -20,4 +20,10 @@ public interface UsuarioService {
 
     void deleteById(Long idUsuario);
 
+    Usuario suspender(Long idUsuario);
+
+    Usuario reactivar(Long idUsuario);
+
+    Usuario cambiarPassword(Long idUsuario, String passwordActual, String passwordNueva);
+
 }

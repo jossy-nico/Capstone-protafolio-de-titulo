@@ -1,5 +1,6 @@
 package com.example.usuario.entity;
 
+import com.example.usuario.enums.EstadoUsuario;
 import com.example.usuario.enums.TipoUsuario;
 
 import jakarta.persistence.*;
@@ -32,4 +33,11 @@ public class Usuario {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private TipoUsuario tipoUsuario;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private EstadoUsuario estado;
+
+    @Column(name = "debe_cambiar_password", nullable = false)
+    private Boolean debeCambiarPassword;
 }

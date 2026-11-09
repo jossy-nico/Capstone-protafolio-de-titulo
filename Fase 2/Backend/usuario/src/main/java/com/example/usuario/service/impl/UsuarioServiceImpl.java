@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.usuario.entity.Usuario;
+import com.example.usuario.enums.EstadoUsuario;
 import com.example.usuario.enums.TipoUsuario;
 import com.example.usuario.repository.UsuarioRepository;
 import com.example.usuario.service.UsuarioService;
@@ -87,7 +88,14 @@ public class UsuarioServiceImpl implements UsuarioService {
         u.setPassword(
                 passwordEncoder.encode(u.getPassword()));
 
-        // 7. Guardar
+        // 7. Todo usuario nuevo comienza con la cuenta activa
+        u.setEstado(EstadoUsuario.ACTIVO);
+
+        // Los empleados deben cambiar la contraseña en su primer ingreso
+        u.setDebeCambiarPassword(
+                u.getTipoUsuario() == TipoUsuario.EMPLEADO);
+
+        // 8. Guardar
         return usuarioRepository.save(u);
     }
 
@@ -187,9 +195,86 @@ public class UsuarioServiceImpl implements UsuarioService {
 
         return usuarioRepository
                 .findByCorreo(correoNormalizado)
+
+                // La cuenta debe estar activa
+                .filter(usuario -> usuario.getEstado() == EstadoUsuario.ACTIVO)
+
+                // La contraseña debe ser correcta
                 .filter(usuario -> passwordEncoder.matches(
                         password,
                         usuario.getPassword()));
+    }
+
+    @Override
+    public Usuario suspender(Long idUsuario) {
+
+        Usuario usuario = usuarioRepository.findById(idUsuario)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Usuario no encontrado con ID: " + idUsuario));
+
+        usuario.setEstado(EstadoUsuario.SUSPENDIDO);
+
+        return usuarioRepository.save(usuario);
+    }
+
+    @Override
+    public Usuario reactivar(Long idUsuario) {
+
+        Usuario usuario = usuarioRepository.findById(idUsuario)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Usuario no encontrado con ID: " + idUsuario));
+
+        usuario.setEstado(EstadoUsuario.ACTIVO);
+
+        return usuarioRepository.save(usuario);
+    }
+
+    @Override
+    public Usuario cambiarPassword(
+            Long idUsuario,
+            String passwordActual,
+            String passwordNueva) {
+
+        Usuario usuario = usuarioRepository.findById(idUsuario)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Usuario no encontrado con ID: " + idUsuario));
+
+        if (passwordActual == null || passwordActual.isBlank()) {
+            throw new IllegalArgumentException(
+                    "La contraseña actual es obligatoria");
+        }
+
+        if (passwordNueva == null || passwordNueva.isBlank()) {
+            throw new IllegalArgumentException(
+                    "La nueva contraseña es obligatoria");
+        }
+
+        // Validar la contraseña actual contra el hash BCrypt
+        if (!passwordEncoder.matches(
+                passwordActual,
+                usuario.getPassword())) {
+
+            throw new IllegalArgumentException(
+                    "La contraseña actual es incorrecta");
+        }
+
+        // Evitar reutilizar la misma contraseña
+        if (passwordEncoder.matches(
+                passwordNueva,
+                usuario.getPassword())) {
+
+            throw new IllegalArgumentException(
+                    "La nueva contraseña debe ser diferente a la actual");
+        }
+
+        // Guardar la nueva contraseña protegida con BCrypt
+        usuario.setPassword(
+                passwordEncoder.encode(passwordNueva));
+
+        // Ya realizó el cambio obligatorio
+        usuario.setDebeCambiarPassword(false);
+
+        return usuarioRepository.save(usuario);
     }
 
 }

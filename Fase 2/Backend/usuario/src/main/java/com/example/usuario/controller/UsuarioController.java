@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.usuario.dto.CambiarPasswordRequest;
 import com.example.usuario.dto.LoginRequest;
 import com.example.usuario.dto.UsuarioResponse;
 import com.example.usuario.dto.UsuarioResumenResponse;
@@ -149,6 +150,64 @@ public class UsuarioController {
                 usuario.getNombre(),
                 usuario.getApellido(),
                 usuario.getCorreo(),
-                usuario.getTipoUsuario());
+                usuario.getTipoUsuario(),
+                usuario.getEstado(),
+                usuario.getDebeCambiarPassword());
+    }
+
+    @PutMapping("/{idUsuario}/suspender")
+    public ResponseEntity<?> suspender(
+            @PathVariable("idUsuario") Long idUsuario) {
+
+        try {
+            Usuario usuario = usuarioService.suspender(idUsuario);
+
+            return ResponseEntity.ok(convertirAResponse(usuario));
+
+        } catch (IllegalArgumentException ex) {
+
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(ex.getMessage());
+        }
+    }
+
+    @PutMapping("/{idUsuario}/reactivar")
+    public ResponseEntity<?> reactivar(
+            @PathVariable("idUsuario") Long idUsuario) {
+
+        try {
+            Usuario usuario = usuarioService.reactivar(idUsuario);
+
+            return ResponseEntity.ok(convertirAResponse(usuario));
+
+        } catch (IllegalArgumentException ex) {
+
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(ex.getMessage());
+        }
+    }
+
+    @PutMapping("/{idUsuario}/cambiar-password")
+    public ResponseEntity<?> cambiarPassword(
+            @PathVariable("idUsuario") Long idUsuario,
+            @RequestBody CambiarPasswordRequest request) {
+
+        try {
+
+            Usuario usuario = usuarioService.cambiarPassword(
+                    idUsuario,
+                    request.getPasswordActual(),
+                    request.getPasswordNueva());
+
+            return ResponseEntity.ok(convertirAResponse(usuario));
+
+        } catch (IllegalArgumentException ex) {
+
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .body(ex.getMessage());
+        }
     }
 }
