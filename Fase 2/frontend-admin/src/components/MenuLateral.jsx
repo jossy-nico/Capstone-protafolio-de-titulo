@@ -1,4 +1,23 @@
-function MenuLateral() {
+import {
+    FiHome,
+    FiPackage,
+    FiGrid,
+    FiUsers,
+    FiShoppingCart,
+    FiBarChart2
+} from 'react-icons/fi'
+
+function MenuLateral({ paginaActual, onCambiarPagina }) {
+
+    const opciones = [
+        { nombre: 'Inicio', icono: <FiHome /> },
+        { nombre: 'Productos', icono: <FiPackage /> },
+        { nombre: 'Categorías', icono: <FiGrid /> },
+        { nombre: 'Empleados', icono: <FiUsers /> },
+        { nombre: 'Ventas', icono: <FiShoppingCart /> },
+        { nombre: 'Reportes', icono: <FiBarChart2 /> }
+    ]
+
     return (
         <aside className="menu-lateral">
 
@@ -8,29 +27,22 @@ function MenuLateral() {
             </div>
 
             <nav className="menu-navegacion">
-                <button className="menu-opcion activa">
-                    Inicio
-                </button>
 
-                <button className="menu-opcion">
-                    Productos
-                </button>
+                {opciones.map((opcion) => (
+                    <button
+                        key={opcion.nombre}
+                        className={
+                            paginaActual === opcion.nombre
+                                ? 'menu-opcion activa'
+                                : 'menu-opcion'
+                        }
+                        onClick={() => onCambiarPagina(opcion.nombre)}
+                    >
+                        {opcion.icono}
+                        <span>{opcion.nombre}</span>
+                    </button>
+                ))}
 
-                <button className="menu-opcion">
-                    Categorías
-                </button>
-
-                <button className="menu-opcion">
-                    Empleados
-                </button>
-
-                <button className="menu-opcion">
-                    Ventas
-                </button>
-
-                <button className="menu-opcion">
-                    Reportes
-                </button>
             </nav>
 
         </aside>
