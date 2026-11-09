@@ -51,7 +51,7 @@ fun PantallaDetalleCompra(
     onIrAPago: () -> Unit
 ) {
     val items by carritoVM.itemsCarrito.collectAsStateWithLifecycle()
-    val ventaCreada by ventaViewModel.ventaCreada.collectAsStateWithLifecycle()
+    val webpayInicio by ventaViewModel.webpayInicio.collectAsStateWithLifecycle()
     val cargando by ventaViewModel.cargando.collectAsStateWithLifecycle()
     val errorVenta by ventaViewModel.errorMensaje.collectAsStateWithLifecycle()
     val datosInvitado by invitadoViewModel.invitadoState.collectAsStateWithLifecycle()
@@ -62,10 +62,6 @@ fun PantallaDetalleCompra(
         items.sumOf {(it.carritoCompra.cantidad / 1000.0) * it.producto.precioKilo}
     }
 
-    // LIMPIAR LA VENTA AL ENTRAR (muy importante)
-    LaunchedEffect(Unit) {
-        ventaViewModel.limpiarVentaCreada()
-    }
 
     // Mostrar errores de la API
     LaunchedEffect(errorVenta) {
@@ -74,9 +70,10 @@ fun PantallaDetalleCompra(
         }
     }
 
-    // Cuando la venta se crea OK → ir a pantalla de pago
-    LaunchedEffect(ventaCreada) {
-        ventaCreada?.let {
+    // Cuando Webpay entrega URL + token,
+    // navegamos a la pantalla que realizará el pago.
+    LaunchedEffect(webpayInicio) {
+        webpayInicio?.let {
             onIrAPago()
         }
     }
@@ -161,7 +158,7 @@ fun PantallaDetalleCompra(
                             strokeWidth = 2.dp
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Creando venta...")
+                        Text("Iniciando Webpay...")
                     } else {
                         Text("Confirmar detalle")
                     }

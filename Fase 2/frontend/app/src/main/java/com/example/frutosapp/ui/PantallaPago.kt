@@ -1,19 +1,31 @@
 package com.example.frutosapp.ui
 
-import androidx.compose.foundation.layout.*
+import android.annotation.SuppressLint
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.frutosapp.CarritoViewModel
 import com.example.frutosapp.VentaViewModel
-import kotlinx.coroutines.launch
+import java.net.URLEncoder
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.layout.padding
 
+@SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PantallaPago(
@@ -22,83 +34,133 @@ fun PantallaPago(
     onVolver: () -> Unit,
     onPagoExitoso: () -> Unit
 ) {
-    // Tomamos tanto la venta creada como la seleccionada
-    val ventaCreada by ventaViewModel.ventaCreada.collectAsStateWithLifecycle()
-    val ventaSeleccionada by ventaViewModel.ventaSeleccionada.collectAsStateWithLifecycle()
 
-    // Usamos primero la seleccionada (por historial), si no, la recién creada
-    val ventaMostrada = ventaSeleccionada ?: ventaCreada
+    val webpayInicio =
+        ventaViewModel.webpayInicio.collectAsStateWithLifecycle().value
 
-    val cargando by ventaViewModel.cargando.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    LaunchedEffect(webpayInicio) {
+        if (webpayInicio == null) {
+            onVolver()
+        }
+    }
 
-    //  Total que se muestra en la pantalla
-    val total = ventaMostrada?.totalVenta ?: 0.0
+    if (webpayInicio == null) {
+        return
+    }
+
+// Desde aquí usamos una referencia NO nullable
+    val datosWebpay = webpayInicio
+
+    /*
+     * Si por alguna razón se llega a esta pantalla
+     * sin haber iniciado Webpay, volvemos.
+     */
+    LaunchedEffect(webpayInicio) {
+        if (webpayInicio == null) {
+            onVolver()
+        }
+    }
+
+    if (webpayInicio == null) {
+        return
+    }
+
+    BackHandler {
+        onVolver()
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Pago") },
+                title = {
+                    Text("Pago Webpay")
+                },
                 navigationIcon = {
-                    IconButton(onClick = onVolver) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                    IconButton(
+                        onClick = onVolver
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Volver"
+                        )
                     }
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        }
     ) { padding ->
-        Column(
+
+        AndroidView(
             modifier = Modifier
                 .padding(padding)
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Total a pagar",
-                style = MaterialTheme.typography.titleMedium
-            )
+                .fillMaxSize(),
 
-            Text(
-                text = "$${"%.0f".format(total)}",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            factory = { context ->
 
-            Spacer(modifier = Modifier.height(24.dp))
+                WebView(context).apply {
 
-            Button(
-                onClick = {
-                    if (ventaMostrada == null) {
-                        scope.launch {
-                            snackbarHostState.showSnackbar("No hay una venta creada.")
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+
+                    webViewClient = object : WebViewClient() {
+
+                        override fun onPageFinished(
+                            view: WebView?,
+                            url: String?
+                        ) {
+                            super.onPageFinished(view, url)
+
+                            /*
+                             * Webpay finalmente vuelve al endpoint
+                             * de nuestro backend.
+                             *
+                             * En ese momento el backend:
+                             *
+                             * 1. confirma la transacción
+                             * 2. crea la venta
+                             * 3. descuenta stock
+                             * 4. registra el pago
+                             */
+                            if (
+                                url != null &&
+                                url.contains("/api/webpay/retorno")
+                            ) {
+
+                                ventaViewModel.procesarPagoWebpay(
+                                    token = datosWebpay.token
+                                ) {
+
+                                    carritoVM.vaciarCarrito()
+
+                                    onPagoExitoso()
+                                }
+                            }
                         }
-                    } else if (!cargando) {
-                        // Pago exitoso (simulado)
-                        carritoVM.vaciarCarrito()
-                        // Dejamos limpio para la próxima compra
-                        ventaViewModel.limpiarVentaCreada()
-                        onPagoExitoso()
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !cargando
-            ) {
-                if (cargando) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
+
+                    /*
+                     * Webpay necesita recibir token_ws mediante POST.
+                     *
+                     * No sirve simplemente abrir:
+                     *
+                     * loadUrl(webpayInicio.url)
+                     *
+                     * porque Transbank espera token_ws.
+                     */
+                    val parametros =
+                        "token_ws=" +
+                                URLEncoder.encode(
+                                    datosWebpay.token,
+                                    "UTF-8"
+                                )
+
+                    postUrl(
+                        datosWebpay.url,
+                        parametros.toByteArray(
+                            Charsets.UTF_8
+                        )
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Procesando pago...")
-                } else {
-                    Text("Pagar")
                 }
             }
-        }
+        )
     }
 }

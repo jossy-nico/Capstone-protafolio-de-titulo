@@ -8,6 +8,7 @@ import com.example.frutosapp.model.DetalleVentaResponseApi
 import com.example.frutosapp.model.ItemCarritoConProducto
 import com.example.frutosapp.model.VentaRequestApi
 import com.example.frutosapp.model.VentaResponseApi
+import com.example.frutosapp.model.WebpayInicioResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,23 +38,45 @@ class VentaViewModel : ViewModel(){
     private val _errorMensaje = MutableStateFlow<String?>(null)
     val errorMensaje: StateFlow<String?> = _errorMensaje
 
+    // Transacción Webpay preparada para abrir el pago
+    private val _webpayInicio =
+        MutableStateFlow<WebpayInicioResponse?>(null)
+
+    val webpayInicio: StateFlow<WebpayInicioResponse?> =
+        _webpayInicio.asStateFlow()
+
     //CONFIRMAR COMPRA
-    fun confirCompra(itemsVenta: List<ItemCarritoConProducto>, usuarioId: Long) {
+    fun confirCompra(
+        itemsVenta: List<ItemCarritoConProducto>,
+        usuarioId: Long
+    ) {
         viewModelScope.launch {
+
             if (itemsVenta.isEmpty()) {
-                _errorMensaje.value = "No hay productos para comprar."
+                _errorMensaje.value =
+                    "No hay productos para comprar."
                 return@launch
             }
 
             try {
-                _cargando.value = true
 
-                // Armar detalles para el request
+                _cargando.value = true
+                _errorMensaje.value = null
+                _webpayInicio.value = null
+
                 val detalles = itemsVenta.map { item ->
+
                     DetalleVentaRequestApi(
-                        productoId = (item.producto.idProductos ?: 0).toLong(),
-                        cantidad = item.carritoCompra.cantidad,
-                        precioUnitario = item.producto.precioKilo
+                        productoId =
+                            (item.producto.idProductos ?: 0).toLong(),
+
+                        cantidad =
+                            item.carritoCompra.cantidad,
+
+                        // El backend NO confía en este precio.
+                        // Calcula nuevamente usando producto-api.
+                        precioUnitario =
+                            item.producto.precioKilo
                     )
                 }
 
@@ -62,24 +85,51 @@ class VentaViewModel : ViewModel(){
                     detalles = detalles
                 )
 
-                val response = RetroFistCliente.ventaApi.crearVenta(request)
+                // IMPORTANTE:
+                // Ya NO creamos la venta directamente.
+                // Primero iniciamos Webpay.
+                val response =
+                    RetroFistCliente.ventaApi
+                        .iniciarPagoWebpay(request)
 
                 if (response.isSuccessful) {
-                    val venta = response.body()
-                    _ventaCreada.value = venta
-                    if (venta != null) {
-                        seleccionarVenta(venta)
+
+                    val webpay = response.body()
+
+                    if (webpay != null) {
+
+                        _webpayInicio.value = webpay
+
+                    } else {
+
+                        _errorMensaje.value =
+                            "Webpay no entregó los datos de pago."
                     }
+
                 } else {
-                    _errorMensaje.value = when (response.code()){
-                        400, 409 -> "Stock insuficiente. Otro cliente compró antes o ya no queda stock."
-                        else -> "Error al crear la enta. Código: ${response.code()}"
-                    }
+
+                    _errorMensaje.value =
+                        when (response.code()) {
+
+                            400, 409 ->
+                                "No fue posible iniciar el pago. " +
+                                        "Verifica el stock disponible."
+
+                            else ->
+                                "Error al iniciar Webpay. Código: " +
+                                        response.code()
+                        }
                 }
+
             } catch (e: Exception) {
+
                 e.printStackTrace()
-                _errorMensaje.value = "Error de conexión: ${e.message}"
+
+                _errorMensaje.value =
+                    "Error de conexión: ${e.message}"
+
             } finally {
+
                 _cargando.value = false
             }
         }
@@ -92,7 +142,8 @@ class VentaViewModel : ViewModel(){
         viewModelScope.launch {
 
             if (itemsVenta.isEmpty()) {
-                _errorMensaje.value = "No hay productos para comprar."
+                _errorMensaje.value =
+                    "No hay productos para comprar."
                 return@launch
             }
 
@@ -103,56 +154,163 @@ class VentaViewModel : ViewModel(){
                 datosInvitado.telefono.isBlank() ||
                 datosInvitado.direccion.isBlank()
             ) {
-                _errorMensaje.value = "Los datos del invitado están incompletos."
+                _errorMensaje.value =
+                    "Los datos del invitado están incompletos."
                 return@launch
             }
 
             try {
+
                 _cargando.value = true
                 _errorMensaje.value = null
+                _webpayInicio.value = null
 
                 val detalles = itemsVenta.map { item ->
+
                     DetalleVentaRequestApi(
-                        productoId = (item.producto.idProductos ?: 0).toLong(),
-                        cantidad = item.carritoCompra.cantidad,
-                        precioUnitario = item.producto.precioKilo
+                        productoId =
+                            (item.producto.idProductos ?: 0).toLong(),
+
+                        cantidad =
+                            item.carritoCompra.cantidad,
+
+                        precioUnitario =
+                            item.producto.precioKilo
                     )
                 }
 
                 val request = VentaRequestApi(
                     clienteId = null,
-                    nombreInvitado = datosInvitado.nombre.trim(),
-                    apellidoInvitado = datosInvitado.apellido.trim(),
-                    correoInvitado = datosInvitado.correo.trim(),
-                    telefonoInvitado = datosInvitado.telefono.trim(),
-                    direccionInvitado = datosInvitado.direccion.trim(),
+
+                    nombreInvitado =
+                        datosInvitado.nombre.trim(),
+
+                    apellidoInvitado =
+                        datosInvitado.apellido.trim(),
+
+                    correoInvitado =
+                        datosInvitado.correo.trim(),
+
+                    telefonoInvitado =
+                        datosInvitado.telefono.trim(),
+
+                    direccionInvitado =
+                        datosInvitado.direccion.trim(),
+
                     detalles = detalles
                 )
 
-                val response = RetroFistCliente.ventaApi.crearVenta(request)
+                // Ya NO creamos la venta directamente.
+                // Primero iniciamos Webpay.
+                val response =
+                    RetroFistCliente.ventaApi
+                        .iniciarPagoWebpay(request)
 
                 if (response.isSuccessful) {
-                    val venta = response.body()
 
-                    _ventaCreada.value = venta
+                    val webpay = response.body()
 
-                    if (venta != null) {
-                        seleccionarVenta(venta)
+                    if (webpay != null) {
+
+                        _webpayInicio.value = webpay
+
+                    } else {
+
+                        _errorMensaje.value =
+                            "Webpay no entregó los datos de pago."
                     }
+
                 } else {
-                    _errorMensaje.value = when (response.code()) {
-                        400, 409 ->
-                            "Stock insuficiente o datos de invitado inválidos."
 
-                        else ->
-                            "Error al crear la venta. Código: ${response.code()}"
-                    }
+                    _errorMensaje.value =
+                        when (response.code()) {
+
+                            400, 409 ->
+                                "No fue posible iniciar el pago. " +
+                                        "Verifica los datos y el stock disponible."
+
+                            else ->
+                                "Error al iniciar Webpay. Código: " +
+                                        response.code()
+                        }
                 }
 
             } catch (e: Exception) {
+
                 e.printStackTrace()
-                _errorMensaje.value = "Error de conexión: ${e.message}"
+
+                _errorMensaje.value =
+                    "Error de conexión: ${e.message}"
+
             } finally {
+
+                _cargando.value = false
+            }
+        }
+    }
+    fun procesarPagoWebpay(
+        token: String,
+        onExito: () -> Unit
+    ) {
+        viewModelScope.launch {
+
+            try {
+
+                _cargando.value = true
+                _errorMensaje.value = null
+
+                // Consultamos el pago Webpay usando el token
+                val estadoResponse =
+                    RetroFistCliente.ventaApi
+                        .obtenerEstadoWebpay(token)
+
+                if (!estadoResponse.isSuccessful) {
+                    _errorMensaje.value =
+                        "No se pudo consultar el estado del pago. Código: " +
+                                estadoResponse.code()
+                    return@launch
+                }
+
+                val estadoPago = estadoResponse.body()
+
+                if (estadoPago == null) {
+                    _errorMensaje.value =
+                        "No se recibió información del pago."
+                    return@launch
+                }
+
+                if (
+                    estadoPago.estado != "AUTHORIZED" ||
+                    estadoPago.ventaId == null
+                ) {
+                    _errorMensaje.value =
+                        "El pago todavía no tiene una venta asociada."
+                    return@launch
+                }
+
+                // Recuperamos la venta que Webpay acaba de crear
+                val venta =
+                    RetroFistCliente.ventaApi
+                        .obtenerVentaPorId(estadoPago.ventaId)
+
+                // Dejamos seleccionada la venta para el comprobante
+                _ventaSeleccionada.value = venta
+                _ventaCreada.value = venta
+
+                // Ya podemos limpiar los datos temporales de Webpay
+                _webpayInicio.value = null
+
+                onExito()
+
+            } catch (e: Exception) {
+
+                e.printStackTrace()
+
+                _errorMensaje.value =
+                    "Error al recuperar la venta: ${e.message}"
+
+            } finally {
+
                 _cargando.value = false
             }
         }
@@ -212,5 +370,8 @@ class VentaViewModel : ViewModel(){
     //para que no se dispare dos veces la navegación
     fun limpiarVentaCreada() {
         _ventaCreada.value = null
+    }
+    fun limpiarWebpayInicio() {
+        _webpayInicio.value = null
     }
 }

@@ -13,3 +13,17 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Archivos generados por Android y Kotlin
+.gradle/
+.kotlin/
+.idea/
+**/build/
+**/release/
+*.apk
+*.aab
+*.log
+*.hprof
+hs_err_pid*
+replay_pid*
+local.properties

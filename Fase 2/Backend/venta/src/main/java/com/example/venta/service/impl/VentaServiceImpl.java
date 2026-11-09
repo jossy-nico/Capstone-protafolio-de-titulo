@@ -1,6 +1,7 @@
 package com.example.venta.service.impl;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.venta.client.ProductoClient;
 import com.example.venta.dto.DetalleVentaRequest;
+import com.example.venta.dto.ProductoResponse;
 import com.example.venta.dto.VentaRequest;
 import com.example.venta.entity.DetalleVenta;
 import com.example.venta.entity.DetalleVentaId;
@@ -17,153 +19,233 @@ import com.example.venta.repository.DetalleVentaRepository;
 import com.example.venta.repository.VentaRepository;
 import com.example.venta.service.VentaService;
 
-
 @Service
 @Transactional
-public class VentaServiceImpl implements VentaService{
+public class VentaServiceImpl implements VentaService {
 
     private final VentaRepository ventaRepository;
     private final DetalleVentaRepository detalleVentaRepository;
-
     private final ProductoClient productoClient;
 
-    public VentaServiceImpl(VentaRepository ventaRepository,
-                            DetalleVentaRepository detalleVentaRepository,
-                            ProductoClient productoClient) {
+    public VentaServiceImpl(
+            VentaRepository ventaRepository,
+            DetalleVentaRepository detalleVentaRepository,
+            ProductoClient productoClient) {
+
         this.ventaRepository = ventaRepository;
         this.detalleVentaRepository = detalleVentaRepository;
         this.productoClient = productoClient;
     }
-    
+
+    // =========================================================
+    // CALCULAR TOTAL
+    // El precio SIEMPRE se obtiene desde producto-api.
+    // Nunca se confía en el precio enviado por Android/React.
+    // =========================================================
+
+    @Override
+    public double calcularTotal(VentaRequest request) {
+
+        validarRequestYDetalles(request);
+
+        double total = 0;
+
+        for (DetalleVentaRequest detalle : request.getDetalles()) {
+
+            ProductoResponse producto = productoClient.obtenerProducto(
+                    detalle.getProductoId());
+
+            validarProducto(producto, detalle.getProductoId());
+
+            double precioVenta = obtenerPrecioVenta(
+                    producto,
+                    detalle.getCantidad());
+
+            total += precioVenta;
+        }
+
+        return total;
+    }
+
+    // =========================================================
+    // CREAR VENTA
+    // =========================================================
+
     @Override
     public Venta crearVenta(VentaRequest request) {
 
+        if (request == null) {
+            throw new IllegalArgumentException(
+                    "La solicitud de venta no puede ser nula.");
+        }
+
         boolean clienteRegistrado = request.getClienteId() != null;
 
-        boolean datosInvitadoCompletos =
-                request.getNombreInvitado() != null &&
+        boolean datosInvitadoCompletos = request.getNombreInvitado() != null &&
                 !request.getNombreInvitado().isBlank() &&
+
                 request.getApellidoInvitado() != null &&
                 !request.getApellidoInvitado().isBlank() &&
+
                 request.getCorreoInvitado() != null &&
                 !request.getCorreoInvitado().isBlank() &&
+
                 request.getTelefonoInvitado() != null &&
                 !request.getTelefonoInvitado().isBlank() &&
+
                 request.getDireccionInvitado() != null &&
                 !request.getDireccionInvitado().isBlank();
 
-        if (!clienteRegistrado && !datosInvitadoCompletos) {
+        if (!clienteRegistrado &&
+                !datosInvitadoCompletos) {
+
             throw new IllegalArgumentException(
-                    "La venta debe tener un cliente registrado o los datos completos del invitado."
-            );
+                    "La venta debe tener un cliente registrado "
+                            + "o los datos completos del invitado.");
         }
 
-        if (request.getDetalles() == null || request.getDetalles().isEmpty()) {
-            throw new IllegalArgumentException(
-                    "La venta debe tener al menos un detalle."
-            );
-        }
+        validarRequestYDetalles(request);
 
-        List<DetalleVentaRequest> descontados =
-                new java.util.ArrayList<>();
+        List<DetalleVentaRequest> descontados = new ArrayList<>();
 
         try {
 
-            // 1. VALIDAR Y DESCONTAR STOCK
-            for (DetalleVentaRequest d : request.getDetalles()) {
+            // -------------------------------------------------
+            // 1. OBTENER PRECIOS REALES Y DESCONTAR STOCK
+            // -------------------------------------------------
 
-                if (d.getProductoId() == null) {
-                    throw new IllegalArgumentException(
-                            "productoId no puede ser nulo."
-                    );
-                }
+            for (DetalleVentaRequest detalle : request.getDetalles()) {
 
-                if (d.getCantidad() == null || d.getCantidad() <= 0) {
-                    throw new IllegalArgumentException(
-                            "cantidad (gramos) debe ser mayor a 0."
-                    );
-                }
+                ProductoResponse producto = productoClient.obtenerProducto(
+                        detalle.getProductoId());
 
-                if (d.getPrecioUnitario() == null ||
-                        d.getPrecioUnitario() < 0) {
-                    throw new IllegalArgumentException(
-                            "precioUnitario no puede ser negativo."
-                    );
-                }
+                validarProducto(
+                        producto,
+                        detalle.getProductoId());
+
+                /*
+                 * IMPORTANTE:
+                 * Sobrescribimos cualquier precio enviado
+                 * por Android/React.
+                 */
+                detalle.setPrecioUnitario(
+                        producto.getPrecioKilo());
 
                 productoClient.descontarStock(
-                        d.getProductoId().intValue(),
-                        d.getCantidad()
-                );
+                        detalle.getProductoId().intValue(),
+                        detalle.getCantidad());
 
-                descontados.add(d);
+                descontados.add(detalle);
             }
 
-            // 2. CALCULAR TOTAL
-            double total = request.getDetalles()
-                    .stream()
-                    .mapToDouble(
-                            d -> (d.getCantidad() / 1000.0) *
-                                    d.getPrecioUnitario()
-                    )
-                    .sum();
+            // -------------------------------------------------
+            // 2. CALCULAR TOTAL CON PRECIOS DEL BACKEND
+            // -------------------------------------------------
 
+            double total = 0;
+
+            for (DetalleVentaRequest detalle : request.getDetalles()) {
+
+                ProductoResponse producto = productoClient.obtenerProducto(
+                        detalle.getProductoId());
+
+                total += obtenerPrecioVenta(
+                        producto,
+                        detalle.getCantidad());
+            }
+
+            // -------------------------------------------------
             // 3. CREAR VENTA
+            // -------------------------------------------------
+
             Venta venta = new Venta();
 
-            venta.setClienteId(request.getClienteId());
+            venta.setClienteId(
+                    request.getClienteId());
 
             if (request.getClienteId() == null) {
+
                 venta.setNombreInvitado(
-                        request.getNombreInvitado().trim()
-                );
+                        request.getNombreInvitado().trim());
+
                 venta.setApellidoInvitado(
-                        request.getApellidoInvitado().trim()
-                );
+                        request.getApellidoInvitado().trim());
+
                 venta.setCorreoInvitado(
-                        request.getCorreoInvitado().trim()
-                );
+                        request.getCorreoInvitado().trim());
+
                 venta.setTelefonoInvitado(
-                        request.getTelefonoInvitado().trim()
-                );
+                        request.getTelefonoInvitado().trim());
+
                 venta.setDireccionInvitado(
-                        request.getDireccionInvitado().trim()
-                );
+                        request.getDireccionInvitado().trim());
             }
 
-            venta.setFechaVenta(LocalDateTime.now());
+            venta.setFechaVenta(
+                    LocalDateTime.now());
+
             venta.setTotalVenta(total);
 
-            Venta guardarVenta = ventaRepository.save(venta);
+            Venta ventaGuardada = ventaRepository.save(venta);
 
+            // -------------------------------------------------
             // 4. GUARDAR DETALLES
-            for (DetalleVentaRequest d : request.getDetalles()) {
+            // -------------------------------------------------
+
+            for (DetalleVentaRequest detalle : request.getDetalles()) {
 
                 DetalleVentaId id = new DetalleVentaId(
-                        guardarVenta.getIdVenta(),
-                        d.getProductoId()
-                );
+                        ventaGuardada.getIdVenta(),
+                        detalle.getProductoId());
 
-                DetalleVenta detalle = new DetalleVenta();
-                detalle.setId(id);
-                detalle.setCantidad(d.getCantidad());
-                detalle.setPrecioUnitario(d.getPrecioUnitario());
+                DetalleVenta detalleVenta = new DetalleVenta();
 
-                detalleVentaRepository.save(detalle);
+                detalleVenta.setId(id);
+
+                detalleVenta.setCantidad(
+                        detalle.getCantidad());
+
+                /*
+                 * Aquí queda guardado el precio REAL
+                 * obtenido desde producto-api.
+                 */
+                detalleVenta.setCantidad(
+                        detalle.getCantidad());
+
+                detalleVenta.setPrecioUnitario(
+                        detalle.getPrecioUnitario());
+
+                ProductoResponse producto = productoClient.obtenerProducto(
+                        detalle.getProductoId());
+
+                double subtotal = obtenerPrecioVenta(
+                        producto,
+                        detalle.getCantidad());
+
+                detalleVenta.setSubtotal(subtotal);
+
+                detalleVentaRepository.save(
+                        detalleVenta);
             }
 
-            return guardarVenta;
+            return ventaGuardada;
 
         } catch (Exception e) {
 
+            // -------------------------------------------------
             // DEVOLVER STOCK SI ALGO FALLA
-            for (DetalleVentaRequest d : descontados) {
+            // -------------------------------------------------
+
+            for (DetalleVentaRequest detalle : descontados) {
+
                 try {
+
                     productoClient.sumarStock(
-                            d.getProductoId().intValue(),
-                            d.getCantidad()
-                    );
+                            detalle.getProductoId().intValue(),
+                            detalle.getCantidad());
+
                 } catch (Exception ex) {
+
                     ex.printStackTrace();
                 }
             }
@@ -172,164 +254,388 @@ public class VentaServiceImpl implements VentaService{
         }
     }
 
+    // =========================================================
+    // OBTENER VENTA
+    // =========================================================
 
     @Override
-    public Optional<Venta> obtenerVentaPorId(Long idVenta){
+    public Optional<Venta> obtenerVentaPorId(
+            Long idVenta) {
+
         return ventaRepository.findById(idVenta);
     }
 
-    @Override
-    public List<Venta> obtenerVentasPorCliente(Long clienteId){
-        return ventaRepository.findByClienteId(clienteId);
-    }
+    // =========================================================
+    // VENTAS POR CLIENTE
+    // =========================================================
 
     @Override
-    public List<DetalleVenta> obtenerDetallesPorVenta(Long idVenta){
-        return detalleVentaRepository.findByIdVentaId(idVenta);
+    public List<Venta> obtenerVentasPorCliente(
+            Long clienteId) {
+
+        return ventaRepository
+                .findByClienteId(clienteId);
     }
 
+    // =========================================================
+    // DETALLES DE UNA VENTA
+    // =========================================================
+
     @Override
-    public List<Venta> listarTodas(){
+    public List<DetalleVenta> obtenerDetallesPorVenta(
+            Long idVenta) {
+
+        return detalleVentaRepository
+                .findByIdVentaId(idVenta);
+    }
+
+    // =========================================================
+    // LISTAR TODAS
+    // =========================================================
+
+    @Override
+    public List<Venta> listarTodas() {
+
         return ventaRepository.findAll();
     }
 
-    //actualizar venta
+    // =========================================================
+    // ACTUALIZAR VENTA
+    // =========================================================
+
     @Override
-    public Venta actualizarVenta(Long idVenta, VentaRequest request) {
+    public Venta actualizarVenta(
+            Long idVenta,
+            VentaRequest request) {
 
         if (idVenta == null) {
-            throw new IllegalArgumentException("idVenta no puede ser nulo.");
+            throw new IllegalArgumentException(
+                    "idVenta no puede ser nulo.");
         }
+
         if (request == null) {
-            throw new IllegalArgumentException("El request no puede ser nulo.");
+            throw new IllegalArgumentException(
+                    "El request no puede ser nulo.");
         }
 
         Venta venta = ventaRepository.findById(idVenta)
-                .orElseThrow(() -> new IllegalArgumentException("La venta no existe."));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "La venta no existe."));
 
-        // 1) Actualización simple del clienteId (no afecta stock)
+        // Actualización simple clienteId
         if (request.getClienteId() != null) {
-            venta.setClienteId(request.getClienteId());
+            venta.setClienteId(
+                    request.getClienteId());
         }
 
-        // Si NO vienen detalles nuevos, solo guarda cambios de clienteId
-        if (request.getDetalles() == null || request.getDetalles().isEmpty()) {
+        /*
+         * Si no vienen detalles nuevos,
+         * no tocamos stock ni precios.
+         */
+        if (request.getDetalles() == null ||
+                request.getDetalles().isEmpty()) {
+
             return ventaRepository.save(venta);
         }
 
-        // 2) Traer detalles actuales
-        List<DetalleVenta> detallesActuales = detalleVentaRepository.findByIdVentaId(idVenta);
+        List<DetalleVenta> detallesActuales = detalleVentaRepository
+                .findByIdVentaId(idVenta);
 
-        // 3) Validar detalles nuevos
-        for (DetalleVentaRequest d : request.getDetalles()) {
-            if (d.getProductoId() == null) {
-                throw new IllegalArgumentException("productoId no puede ser nulo.");
-            }
-            if (d.getCantidad() == null || d.getCantidad() <= 0) {
-                throw new IllegalArgumentException("cantidad (gramos) debe ser mayor a 0.");
-            }
-            if (d.getPrecioUnitario() == null || d.getPrecioUnitario() < 0) {
-                throw new IllegalArgumentException("precioUnitario no puede ser negativo.");
-            }
+        // -------------------------------------------------
+        // VALIDAR Y OBTENER PRECIOS REALES
+        // -------------------------------------------------
+
+        for (DetalleVentaRequest detalle : request.getDetalles()) {
+
+            validarDetalle(detalle);
+
+            ProductoResponse producto = productoClient.obtenerProducto(
+                    detalle.getProductoId());
+
+            validarProducto(
+                    producto,
+                    detalle.getProductoId());
+
+            /*
+             * Ignoramos precio recibido externamente.
+             */
+            detalle.setPrecioUnitario(
+                    producto.getPrecioKilo());
         }
 
-        // Guardar tracking para compensación
-        // devolvimos: para saber qué stock devolvimos
-        // descontadosNuevos: para revertir si algo falla después
-        List<DetalleVenta> devueltos = new java.util.ArrayList<>();
-        List<DetalleVentaRequest> descontadosNuevos = new java.util.ArrayList<>();
+        List<DetalleVenta> devueltos = new ArrayList<>();
+
+        List<DetalleVentaRequest> descontadosNuevos = new ArrayList<>();
 
         try {
-            // 4) DEVOLVER stock de los detalles actuales
-            for (DetalleVenta det : detallesActuales) {
-                Long productoIdLong = det.getId().getProductoId();
-                if (productoIdLong != null) {
-                    productoClient.sumarStock(productoIdLong.intValue(), det.getCantidad());
-                    devueltos.add(det);
+
+            // -------------------------------------------------
+            // DEVOLVER STOCK ANTERIOR
+            // -------------------------------------------------
+
+            for (DetalleVenta detalle : detallesActuales) {
+
+                Long productoId = detalle.getId()
+                        .getProductoId();
+
+                if (productoId != null) {
+
+                    productoClient.sumarStock(
+                            productoId.intValue(),
+                            detalle.getCantidad());
+
+                    devueltos.add(detalle);
                 }
             }
 
-            // 5) DESCONTAR stock de los detalles nuevos (en gramos)
-            for (DetalleVentaRequest d : request.getDetalles()) {
-                productoClient.descontarStock(d.getProductoId().intValue(), d.getCantidad());
-                descontadosNuevos.add(d);
+            // -------------------------------------------------
+            // DESCONTAR NUEVO STOCK
+            // -------------------------------------------------
+
+            for (DetalleVentaRequest detalle : request.getDetalles()) {
+
+                productoClient.descontarStock(
+                        detalle.getProductoId().intValue(),
+                        detalle.getCantidad());
+
+                descontadosNuevos.add(detalle);
             }
 
-            // 6) Reemplazar detalles en DB (ya el stock está ok)
-            detalleVentaRepository.deleteAll(detallesActuales);
+            // -------------------------------------------------
+            // REEMPLAZAR DETALLES
+            // -------------------------------------------------
+
+            detalleVentaRepository
+                    .deleteAll(detallesActuales);
 
             double totalNuevo = 0;
 
-            for (DetalleVentaRequest d : request.getDetalles()) {
-                DetalleVentaId id = new DetalleVentaId(idVenta, d.getProductoId());
+            for (DetalleVentaRequest detalle : request.getDetalles()) {
+
+                DetalleVentaId id = new DetalleVentaId(
+                        idVenta,
+                        detalle.getProductoId());
 
                 DetalleVenta detalleNuevo = new DetalleVenta();
+
                 detalleNuevo.setId(id);
-                detalleNuevo.setCantidad(d.getCantidad()); // gramos
-                detalleNuevo.setPrecioUnitario(d.getPrecioUnitario()); // precio por kilo
 
-                detalleVentaRepository.save(detalleNuevo);
+                detalleNuevo.setCantidad(
+                        detalle.getCantidad());
 
-                // total = (gramos/1000)*precio_kilo
-                totalNuevo += (d.getCantidad() / 1000.0) * d.getPrecioUnitario();
+                detalleNuevo.setPrecioUnitario(
+                        detalle.getPrecioUnitario());
+
+                ProductoResponse producto = productoClient.obtenerProducto(
+                        detalle.getProductoId());
+
+                double subtotal = obtenerPrecioVenta(
+                        producto,
+                        detalle.getCantidad());
+
+                detalleNuevo.setSubtotal(subtotal);
+
+                detalleVentaRepository.save(
+                        detalleNuevo);
+
+                totalNuevo += subtotal;
             }
 
             venta.setTotalVenta(totalNuevo);
+
             return ventaRepository.save(venta);
 
         } catch (Exception e) {
 
-            // COMPENSACIÓN 1: si alcanzamos a descontar nuevos, los devolvemos
-            for (DetalleVentaRequest d : descontadosNuevos) {
+            // -------------------------------------------------
+            // COMPENSACIÓN NUEVO STOCK
+            // -------------------------------------------------
+
+            for (DetalleVentaRequest detalle : descontadosNuevos) {
+
                 try {
-                    productoClient.sumarStock(d.getProductoId().intValue(), d.getCantidad());
-                } catch (Exception ignored) {}
+
+                    productoClient.sumarStock(
+                            detalle.getProductoId().intValue(),
+                            detalle.getCantidad());
+
+                } catch (Exception ignored) {
+                }
             }
 
-            // COMPENSACIÓN 2: si ya devolvimos los anteriores, debemos volver a descontarlos
-            // para dejar el sistema como estaba
-            for (DetalleVenta det : devueltos) {
+            // -------------------------------------------------
+            // RESTAURAR STOCK ANTERIOR
+            // -------------------------------------------------
+
+            for (DetalleVenta detalle : devueltos) {
+
                 try {
-                    Long productoIdLong = det.getId().getProductoId();
-                    if (productoIdLong != null) {
-                        productoClient.descontarStock(productoIdLong.intValue(), det.getCantidad());
+
+                    Long productoId = detalle.getId()
+                            .getProductoId();
+
+                    if (productoId != null) {
+
+                        productoClient.descontarStock(
+                                productoId.intValue(),
+                                detalle.getCantidad());
                     }
-                } catch (Exception ignored) {}
+
+                } catch (Exception ignored) {
+                }
             }
 
             throw e;
         }
     }
 
+    // =========================================================
+    // ELIMINAR VENTA
+    // =========================================================
 
-    //eliminar venta
     @Override
     public void eliminarVenta(Long idVenta) {
+
         if (idVenta == null) {
-            throw new IllegalArgumentException("idVenta no puede ser nulo.");
+            throw new IllegalArgumentException(
+                    "idVenta no puede ser nulo.");
         }
 
         if (!ventaRepository.existsById(idVenta)) {
-            throw new IllegalArgumentException("La venta no existe.");
+            throw new IllegalArgumentException(
+                    "La venta no existe.");
         }
 
-        // 1) Obtener detalles (para devolver stock)
-        List<DetalleVenta> detalles = detalleVentaRepository.findByIdVentaId(idVenta);
+        List<DetalleVenta> detalles = detalleVentaRepository
+                .findByIdVentaId(idVenta);
 
-        // 2) Devolver stock al MS producto
-        //    (cantidad en DetalleVenta = gramos)
-        for (DetalleVenta det : detalles) {
-            Long productoIdLong = det.getId().getProductoId();
-            if (productoIdLong != null) {
-                productoClient.sumarStock(productoIdLong.intValue(), det.getCantidad());
+        // Devolver stock
+        for (DetalleVenta detalle : detalles) {
+
+            Long productoId = detalle.getId()
+                    .getProductoId();
+
+            if (productoId != null) {
+
+                productoClient.sumarStock(
+                        productoId.intValue(),
+                        detalle.getCantidad());
             }
         }
 
-        // 3) Borrar detalles + venta
-        detalleVentaRepository.deleteAll(detalles);
-        ventaRepository.deleteById(idVenta);
+        detalleVentaRepository
+                .deleteAll(detalles);
+
+        ventaRepository
+                .deleteById(idVenta);
     }
 
+    // =========================================================
+    // VALIDACIONES PRIVADAS
+    // =========================================================
 
+    private void validarRequestYDetalles(
+            VentaRequest request) {
 
+        if (request == null) {
+
+            throw new IllegalArgumentException(
+                    "La solicitud de venta no puede ser nula.");
+        }
+
+        if (request.getDetalles() == null ||
+                request.getDetalles().isEmpty()) {
+
+            throw new IllegalArgumentException(
+                    "La venta debe tener al menos un detalle.");
+        }
+
+        for (DetalleVentaRequest detalle : request.getDetalles()) {
+
+            validarDetalle(detalle);
+        }
+    }
+
+    private void validarDetalle(
+            DetalleVentaRequest detalle) {
+
+        if (detalle == null) {
+
+            throw new IllegalArgumentException(
+                    "El detalle de venta no puede ser nulo.");
+        }
+
+        if (detalle.getProductoId() == null) {
+
+            throw new IllegalArgumentException(
+                    "productoId no puede ser nulo.");
+        }
+
+        if (detalle.getCantidad() == null ||
+                detalle.getCantidad() <= 0) {
+
+            throw new IllegalArgumentException(
+                    "cantidad (gramos) debe ser mayor a 0.");
+        }
+
+        /*
+         * Ya NO validamos precioUnitario recibido.
+         *
+         * Puede venir modificado, nulo o incorrecto:
+         * el backend obtiene el precio real desde producto-api.
+         */
+    }
+
+    private void validarProducto(
+            ProductoResponse producto,
+            Long productoId) {
+
+        if (producto == null) {
+
+            throw new IllegalArgumentException(
+                    "No se encontró el producto "
+                            + productoId + ".");
+        }
+
+        if (producto.getPrecioKilo() == null ||
+                producto.getPrecioKilo() < 0) {
+
+            throw new IllegalArgumentException(
+                    "El producto "
+                            + productoId
+                            + " no tiene un precio válido.");
+        }
+    }
+
+    private double obtenerPrecioVenta(
+            ProductoResponse producto,
+            Integer cantidadGramos) {
+
+        if (cantidadGramos == 250) {
+
+            if (producto.getPrecio250g() == null ||
+                    producto.getPrecio250g() < 0) {
+
+                throw new IllegalArgumentException(
+                        "El producto no tiene un precio válido para 250 g.");
+            }
+
+            return producto.getPrecio250g();
+        }
+
+        if (producto.getPrecioKilo() == null ||
+                producto.getPrecioKilo() < 0) {
+
+            throw new IllegalArgumentException(
+                    "El producto no tiene un precio por kilo válido.");
+        }
+
+        /*
+         * Para otras cantidades:
+         * se calcula proporcionalmente y se redondea a pesos chilenos.
+         */
+        return Math.round(
+                (cantidadGramos / 1000.0)
+                        * producto.getPrecioKilo());
+    }
 }
