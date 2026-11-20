@@ -48,6 +48,8 @@ jobs:
         run: docker compose config --quiet
       - name: Validate database initializer shell syntax
         run: sh -n docker/postgres/init/10-create-databases.sh
+      - name: Build all five microservice images
+        run: docker compose build --pull
 
   compile-services:
     name: Compile ${{ matrix.service }}
