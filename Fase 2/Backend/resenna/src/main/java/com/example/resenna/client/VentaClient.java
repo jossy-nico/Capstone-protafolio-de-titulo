@@ -1,5 +1,6 @@
 package com.example.resenna.client;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -9,9 +10,10 @@ public class VentaClient {
 
     private final RestClient restClient;
 
-    public VentaClient() {
+    public VentaClient(
+            @Value("${venta.api.base-url:http://localhost:8383/api/ventas}") String baseUrl) {
         this.restClient = RestClient.builder()
-                .baseUrl("http://localhost:8383/api/ventas")
+                .baseUrl(baseUrl)
                 .build();
     }
 
