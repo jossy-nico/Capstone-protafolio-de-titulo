@@ -1,0 +1,80 @@
+name: Docker stack validation
+
+on:
+  pull_request:
+    branches:
+      - actualizacion-capstone-webpay-pdf
+    paths:
+      - "docker-compose.yml"
+      - "docker/postgres/**"
+      - "Fase 2/Backend/**"
+      - ".env.example"
+      - ".github/workflows/docker-stack-validation.yml"
+  push:
+    branches:
+      - feat/docker-postgresql-stack
+    paths:
+      - "docker-compose.yml"
+      - "docker/postgres/**"
+      - "Fase 2/Backend/**"
+      - ".env.example"
+      - ".github/workflows/docker-stack-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compose-config:
+    name: Validate Compose configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create non-secret validation environment
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_IMAGE=postgres:17-alpine
+          POSTGRES_USER=ci_user
+          POSTGRES_PASSWORD=ci-only-not-a-secret
+          POSTGRES_VOLUME_NAME=ci-postgres-volume
+          CLOUDINARY_CLOUD_NAME=ci-placeholder
+          CLOUDINARY_API_KEY=ci-placeholder
+          CLOUDINARY_API_SECRET=ci-placeholder
+          WEBPAY_API_KEY=ci-placeholder
+          EOF
+          mkdir -p secrets/jwt
+          touch secrets/jwt/private.pem secrets/jwt/public.pem
+      - name: Validate Compose interpolation and merged configuration
+        run: docker compose config --quiet
+      - name: Validate database initializer shell syntax
+        run: sh -n docker/postgres/init/10-create-databases.sh
+
+  compile-services:
+    name: Compile ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: producto
+            path: "Fase 2/Backend/producto"
+          - service: usuario
+            path: "Fase 2/Backend/usuario"
+          - service: carrito
+            path: "Fase 2/Backend/carrito_compra"
+          - service: venta
+            path: "Fase 2/Backend/venta"
+          - service: resenas
+            path: "Fase 2/Backend/resenna"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Compile main and test sources with module Gradle Wrapper
+        working-directory: ${{ matrix.path }}
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon compileJava compileTestJava

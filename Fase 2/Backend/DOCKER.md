@@ -59,7 +59,7 @@ docker compose ps
 docker compose logs -f postgres db-init
 ```
 
-El servicio `db-init` se ejecuta después de que PostgreSQL está saludable y antes de los microservicios. El script `docker/postgres/init/10-create-databases.sh` consulta cada base y solo crea las que faltan. Es idempotente: puede ejecutarse nuevamente sin borrar ni recrear bases existentes.
+El servicio `db-init` se ejecuta después de que PostgreSQL está saludable y antes de los microservicios. El script `docker/postgres/init/10-create-databases.sh` consulta cada base y solo crea las que faltan. Es idempotente: puede ejecutarse nuevamente sin borrar ni recrear bases existentes. Si una base ya existe con un propietario distinto de `POSTGRES_USER`, el script falla deliberadamente sin modificarla; revisa permisos/propietario antes de iniciar las APIs. El rol usado para inicializar debe tener privilegio `CREATEDB` en el cluster.
 
 Para repetir únicamente la inicialización:
 
@@ -81,7 +81,7 @@ Si configuraste otro `POSTGRES_USER`, úsalo en el comando.
 - Productos recibe variables Cloudinary.
 - Usuarios recibe rutas de clave privada y pública RSA montadas desde `secrets/jwt`.
 - Ventas recibe la clave pública RSA, `WEBPAY_API_KEY`, y las URLs internas de Productos y Usuarios.
-- Reseñas recibe las URLs internas de Usuarios y Ventas; sus clientes HTTP leen esas URLs desde propiedades configurables.
+- Reseñas recibe las URLs internas de Usuarios y Ventas; sus clientes HTTP leen esas URLs desde propiedades configurables. `depends_on: service_started` ordena el inicio, pero no garantiza que los endpoints HTTP estén listos; las llamadas entre servicios se realizan durante las operaciones y deben verificarse en la prueba de integración.
 - Webpay permanece en modo de integración TEST en el código actual. Esta configuración no habilita pagos de producción.
 
 ## Frontends
