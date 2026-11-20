@@ -1,0 +1,139 @@
+name: natur-cosecha
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-naturcosecha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  db-init:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-naturcosecha}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      PGDATABASE: postgres
+    volumes:
+      - ./docker/postgres/init/10-create-databases.sh:/scripts/10-create-databases.sh:ro
+    entrypoint: ["sh", "/scripts/10-create-databases.sh"]
+
+  productos:
+    build:
+      context: "./Fase 2/Backend/producto"
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/producto_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-naturcosecha}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:?Define CLOUDINARY_CLOUD_NAME en .env}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:?Define CLOUDINARY_API_KEY en .env}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:?Define CLOUDINARY_API_SECRET en .env}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  usuarios:
+    build:
+      context: "./Fase 2/Backend/usuario"
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8181
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/usuario_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-naturcosecha}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      APP_JWT_PRIVATE_KEY_PATH: /run/secrets/jwt/private.pem
+      APP_JWT_PUBLIC_KEY_PATH: /run/secrets/jwt/public.pem
+    volumes:
+      - ./secrets/jwt:/run/secrets/jwt:ro
+    ports:
+      - "8181:8181"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  carrito:
+    build:
+      context: "./Fase 2/Backend/carrito_compra"
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8282
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/carrito_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-naturcosecha}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+    ports:
+      - "8282:8282"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  ventas:
+    build:
+      context: "./Fase 2/Backend/venta"
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8383
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/venta_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-naturcosecha}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      PRODUCTO_API_BASE_URL: http://productos:8080
+      USUARIO_API_BASE_URL: http://usuarios:8181
+      APP_JWT_PUBLIC_KEY_PATH: /run/secrets/jwt/public.pem
+      WEBPAY_API_KEY: ${WEBPAY_API_KEY:?Define WEBPAY_API_KEY en .env}
+    volumes:
+      - ./secrets/jwt:/run/secrets/jwt:ro
+    ports:
+      - "8383:8383"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  resenas:
+    build:
+      context: "./Fase 2/Backend/resenna"
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8484
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/resenna_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-naturcosecha}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      USUARIO_API_BASE_URL: http://usuarios:8181/api/usuarios
+      VENTA_API_BASE_URL: http://ventas:8383/api/ventas
+    ports:
+      - "8484:8484"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+      usuarios:
+        condition: service_started
+      ventas:
+        condition: service_started
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-natur-cosecha-postgres-data}

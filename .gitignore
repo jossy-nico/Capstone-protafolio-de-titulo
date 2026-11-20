@@ -28,6 +28,8 @@ Thumbs.db
 # Environment / secrets
 .env
 **/.env
+secrets/
+**/secrets/
 
 # Configuración local con posibles credenciales
 **/application-local.properties
