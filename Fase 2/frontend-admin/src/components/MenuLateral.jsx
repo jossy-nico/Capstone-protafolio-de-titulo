@@ -1,9 +1,11 @@
+
 import {
     FiHome,
     FiPackage,
     FiGrid,
     FiUsers,
     FiShoppingCart,
+    FiTruck,
     FiBarChart2
 } from 'react-icons/fi'
 
@@ -15,6 +17,10 @@ function MenuLateral({ paginaActual, onCambiarPagina }) {
         { nombre: 'Categorías', icono: <FiGrid /> },
         { nombre: 'Empleados', icono: <FiUsers /> },
         { nombre: 'Ventas', icono: <FiShoppingCart /> },
+
+        // HU-32: Gestión logística de pedidos
+        { nombre: 'Pedidos y despachos', icono: <FiTruck /> },
+
         { nombre: 'Reportes', icono: <FiBarChart2 /> }
     ]
 

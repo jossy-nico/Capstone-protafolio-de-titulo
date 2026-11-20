@@ -1,0 +1,35 @@
+# Java / Spring / Gradle
+target/
+build/
+.gradle/
+**/target/
+**/build/
+**/.gradle/
+**/bin/
+**/out/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+**/.idea/
+**/*.iml
+
+# VS Code
+.vscode/
+**/.vscode/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+**/.env
+
+# Configuración local con posibles credenciales
+**/application-local.properties
+**/application-local.yml
+**/application-local.yaml
