@@ -81,9 +81,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Configure Java for Android signing
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generate temporary Android debug signing key
+        shell: bash
+        run: |
+          keytool -genkeypair \
+            -keystore "$RUNNER_TEMP/android-ci-debug.keystore" \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -noprompt
+
       - name: Build Android with Docker
+        shell: bash
         run: |
           docker build \
+            --secret "id=android_debug_keystore,src=$RUNNER_TEMP/android-ci-debug.keystore" \
             -f frutos-android/Dockerfile.android \
             -t natur-cosecha-android-builder:ci \
             frutos-android

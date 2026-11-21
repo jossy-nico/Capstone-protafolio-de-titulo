@@ -204,6 +204,70 @@ fun PantallaPago(
                         webViewClient =
                             object : WebViewClient() {
 
+                                override fun onPageStarted(
+                                    view: WebView?,
+                                    url: String?,
+                                    favicon: android.graphics.Bitmap?
+                                ) {
+                                    super.onPageStarted(view, url, favicon)
+
+                                    val esRetorno = try {
+                                        Uri.parse(url)
+                                            .path
+                                            ?.trimEnd('/') ==
+                                            "/api/webpay/retorno"
+                                    } catch (e: Exception) {
+                                        false
+                                    }
+
+                                    if (esRetorno) {
+                                        Log.d(
+                                            "NATUR_WEBPAY",
+                                            "Navegación hacia retorno detectada."
+                                        )
+                                    }
+                                }
+
+                                override fun onReceivedError(
+                                    view: WebView?,
+                                    request: android.webkit.WebResourceRequest?,
+                                    error: android.webkit.WebResourceError?
+                                ) {
+                                    super.onReceivedError(
+                                        view,
+                                        request,
+                                        error
+                                    )
+
+                                    if (request?.isForMainFrame == true) {
+                                        Log.e(
+                                            "NATUR_WEBPAY",
+                                            "Error de navegación. Código: " +
+                                                error?.errorCode
+                                        )
+                                    }
+                                }
+
+                                override fun onReceivedHttpError(
+                                    view: WebView?,
+                                    request: android.webkit.WebResourceRequest?,
+                                    errorResponse: android.webkit.WebResourceResponse?
+                                ) {
+                                    super.onReceivedHttpError(
+                                        view,
+                                        request,
+                                        errorResponse
+                                    )
+
+                                    if (request?.isForMainFrame == true) {
+                                        Log.e(
+                                            "NATUR_WEBPAY",
+                                            "Error HTTP WebView. Código: " +
+                                                errorResponse?.statusCode
+                                        )
+                                    }
+                                }
+
                                 override fun onPageFinished(
                                     view: WebView?,
                                     url: String?

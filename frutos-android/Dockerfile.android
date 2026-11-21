@@ -26,7 +26,8 @@ WORKDIR /workspace
 
 COPY . .
 
-RUN chmod +x ./gradlew && \
+RUN --mount=type=secret,id=android_debug_keystore,target=/root/.android/debug.keystore \
+    chmod +x ./gradlew && \
     ./gradlew :app:assembleDebug --no-daemon
 
 CMD ["sh", "-c", "echo 'APK generado en /workspace/app/build/outputs/apk/debug/app-debug.apk'"]

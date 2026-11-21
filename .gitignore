@@ -55,3 +55,6 @@ frutos-android/app/release/
 *.backup_*
 
 # Configuraci├│n local con posibles credenciales
+
+# Respaldos locales
+*.bak
