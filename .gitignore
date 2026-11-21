@@ -1,0 +1,57 @@
+# Java / Spring / Gradle
+target/
+build/
+.gradle/
+**/target/
+**/build/
+**/.gradle/
+**/bin/
+**/out/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+**/.idea/
+**/*.iml
+
+# VS Code
+.vscode/
+**/.vscode/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+**/.env
+secrets/
+**/secrets/
+
+# ConfiguraciÔö£Ôöén local con posibles credenciales
+**/application-local.properties
+**/application-local.yml
+**/application-local.yaml
+
+.env.*
+!.env.example
+backup_postgresql_*/
+backup_postgresql_corregido_*/
+*.dump
+**/node_modules/
+**/dist/
+*.backup_*
+*.apk
+*.aab
+*.jks
+*.keystore
+**/local.properties
+**/apk-docker/
+frutos-android/app/release/
+
+*.backup_*
+
+# Configuraci├│n local con posibles credenciales

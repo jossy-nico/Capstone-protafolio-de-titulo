@@ -1,0 +1,21 @@
+services:
+  postgres:
+    ports: !reset []
+
+  productos:
+    ports: !reset []
+
+  usuarios:
+    ports: !reset []
+
+  carrito:
+    ports: !reset []
+
+  ventas:
+    ports: !reset []
+
+  resenas:
+    ports: !reset []
+
+  frontend-admin:
+    ports: !reset []
