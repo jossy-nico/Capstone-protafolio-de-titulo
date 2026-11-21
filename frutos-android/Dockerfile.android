@@ -1,0 +1,32 @@
+FROM eclipse-temurin:17-jdk-jammy
+
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH="${PATH}:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools"
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl unzip && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" && \
+    curl -fL --retry 3 \
+      https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip \
+      -o /tmp/android-tools.zip && \
+    unzip -q /tmp/android-tools.zip -d /tmp/android-tools && \
+    mv /tmp/android-tools/cmdline-tools "${ANDROID_SDK_ROOT}/cmdline-tools/latest" && \
+    rm -rf /tmp/android-tools /tmp/android-tools.zip
+
+RUN yes | sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" --licenses > /dev/null && \
+    sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" \
+      "platforms;android-36" \
+      "build-tools;35.0.0" \
+      "platform-tools"
+
+WORKDIR /workspace
+
+COPY . .
+
+RUN chmod +x ./gradlew && \
+    ./gradlew :app:assembleDebug --no-daemon
+
+CMD ["sh", "-c", "echo 'APK generado en /workspace/app/build/outputs/apk/debug/app-debug.apk'"]

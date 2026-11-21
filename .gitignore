@@ -31,7 +31,27 @@ Thumbs.db
 secrets/
 **/secrets/
 
-# Configuración local con posibles credenciales
+# ConfiguraciÔö£Ôöén local con posibles credenciales
 **/application-local.properties
 **/application-local.yml
 **/application-local.yaml
+
+.env.*
+!.env.example
+backup_postgresql_*/
+backup_postgresql_corregido_*/
+*.dump
+**/node_modules/
+**/dist/
+*.backup_*
+*.apk
+*.aab
+*.jks
+*.keystore
+**/local.properties
+**/apk-docker/
+frutos-android/app/release/
+
+*.backup_*
+
+# Configuraci├│n local con posibles credenciales

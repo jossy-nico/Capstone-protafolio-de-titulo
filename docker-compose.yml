@@ -37,7 +37,7 @@ services:
 
   productos:
     build:
-      context: "./Fase 2/Backend/producto"
+      context: "./producto"
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -56,7 +56,7 @@ services:
 
   usuarios:
     build:
-      context: "./Fase 2/Backend/usuario"
+      context: "./usuario"
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -76,7 +76,7 @@ services:
 
   carrito:
     build:
-      context: "./Fase 2/Backend/carrito_compra"
+      context: "./carrito_compra"
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -92,7 +92,7 @@ services:
 
   ventas:
     build:
-      context: "./Fase 2/Backend/venta"
+      context: "./venta"
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -114,7 +114,7 @@ services:
 
   resenas:
     build:
-      context: "./Fase 2/Backend/resenna"
+      context: "./resenna"
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:

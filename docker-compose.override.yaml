@@ -1,0 +1,33 @@
+services:
+  productos:
+    build:
+      context: ./producto
+      dockerfile: Dockerfile
+
+  usuarios:
+    build:
+      context: ./usuario
+      dockerfile: Dockerfile
+
+  carrito:
+    build:
+      context: ./carrito_compra
+      dockerfile: Dockerfile
+
+  ventas:
+    build:
+      context: ./venta
+      dockerfile: Dockerfile
+
+  resenas:
+    build:
+      context: ./resenna
+      dockerfile: Dockerfile
+
+  frontend-admin:
+    build:
+      context: ./frutos-admin
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    restart: unless-stopped
