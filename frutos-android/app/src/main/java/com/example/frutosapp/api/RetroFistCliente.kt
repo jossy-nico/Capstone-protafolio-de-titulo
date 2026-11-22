@@ -105,8 +105,17 @@ object RetroFistCliente {
         val puerto = url.port
         val metodo = request.method
 
-        val esUsuarioApi = puerto == 8181
-        val esVentaApi = puerto == 8383
+        val esUsuarioApi =
+            puerto == 8181 ||
+                    ruta.startsWith("/api/usuarios") ||
+                    ruta.startsWith("/api/clientes") ||
+                    ruta.startsWith("/api/empleados") ||
+                    ruta.startsWith("/api/favoritos")
+
+        val esVentaApi =
+            puerto == 8383 ||
+                    ruta.startsWith("/api/ventas") ||
+                    ruta.startsWith("/api/webpay")
 
         val esWebpayPublico =
             esVentaApi &&
